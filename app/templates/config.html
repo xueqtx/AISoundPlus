@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" href="{{url_for('static', filename='index.css')}}">
+</head>
+<style>
+    .el-form-item__content{
+        display: flex;
+    }
+    .el-input{
+        width: 300px;
+    }
+</style>
+<body>
+<div id="app">
+    <template>
+        <el-form label-width="100px" class="demo-dynamic">
+            <el-form-item
+                    v-for="(item, index) in dynamicValidateForm"
+                    :label="'任务' + index"
+                    :key="index">
+                <el-select v-model="item.type" placeholder="请选择">
+                    <el-option
+                            v-for="item in options"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value">
+                    </el-option>
+                </el-select>
+                <el-select v-if="item.type === 'music'" v-model="item.txt" placeholder="请选择" filterable style="margin-left: 10px">
+                    <el-option
+                            v-for="item in musicList"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value">
+                    </el-option>
+                </el-select>
+                <el-input v-else v-model="item.txt" style="margin-left: 10px"></el-input>
+                <el-upload v-if="item.type === 'music'"
+                           class="upload-demo"
+                           action="/config/upload.do"
+                           accept=".mp3"
+                           :show-file-list="show_file"
+                           :before-upload="beforeUpload"
+                           :on-success="uploadSuccess">
+                    <el-button  type="primary" style="margin-left: 20px" @click="upload(item)">上传</el-button>
+                </el-upload>
+                <el-button style="margin-left: 20px" @click.prevent="removeDomain(item)">删除</el-button>
+            </el-form-item>
+            <el-form-item>
+                <el-button style="margin-right: 20px"@click="addTask">新增任务</el-button>
+            </el-form-item>
+        </el-form>
+        <div style="position: absolute;bottom:20px;right: 20px" >
+            <el-button type="primary" @click="submitForm(dynamicValidateForm)">提交</el-button>
+            <el-button @click="cancel()">取消</el-button>
+        </div>
+    </template>
+</div>
+</body>
+<!-- import Vue before Element -->
+<script src="{{url_for('static', filename='vue.js')}}"></script>
+<!-- import JavaScript -->
+<script src="{{url_for('static', filename='index.js')}}"></script>
+<script src="{{url_for('static', filename='axios.min.js')}}"></script>
+<script>
+    const jobId = getQueryVariable("jobId")
+    var vm =  new Vue({
+        el: '#app',
+        data: function() {
+            return {
+                dynamicValidateForm: [{
+                    type:'',
+                    txt:'',
+                }],
+                options: [{
+                    value: 'music',
+                    label: '音频播放'
+                }, {
+                    value: 'sleep',
+                    label: '休眠（以秒计）'
+                }, {
+                    value: 'say',
+                    label: '语音输出'
+                }],
+                musicList:[],
+                show_file:false,
+                copyItem:{}
+            }
+        },
+        methods: {
+            submitForm(formMessage) {
+                axios({
+                    method: 'post',
+                    url: '/config/update.do',
+                    data: {
+                        job_id: jobId,
+                        form:JSON.stringify(formMessage)
+                    }
+                }).then(function (response) {
+                    parent.vm.closeConfig();
+                })
+            },
+            loadForm(jobId) {
+                let _this = this
+                axios({
+                    method: 'post',
+                    url: '/config/query.do',
+                    data: {
+                        job_id: jobId,
+                    }
+                }).then(function (response) {
+                    if (response.data&&response.data[0]){
+                        _this.dynamicValidateForm = response.data
+                    }
+                })
+            },
+            loadMusicList() {
+                let _this = this
+                axios({
+                    method: 'get',
+                    url: '/config/getMusicList.do',
+                }).then(function (response) {
+                    if (response.data&&response.data[0]){
+                        _this.musicList = response.data
+                    }
+                })
+            },
+            removeDomain(item) {
+                let index = this.dynamicValidateForm.indexOf(item);
+                if (index !== -1) {
+                    this.dynamicValidateForm.splice(index, 1)
+                }
+            },
+            addTask() {
+                this.dynamicValidateForm.push({
+                    type:'',
+                    txt: '',
+                });
+            },
+            cancel(){
+                parent.vm.closeConfig();
+            },
+            upload(item){
+                this.copyItem = item
+            },
+            uploadSuccess(res, file, fileList){
+                console.log(res)
+                this.copyItem.txt = file.name
+                this.loadMusicList()
+            },
+            beforeUpload(file) {
+                let test_msg=file.name.substring(file.name.lastIndexOf('.')+1)
+                const extension = test_msg === 'mp3'
+                if(!extension) {
+                    this.$message({
+                        message: '上传文件只能是mp3格式!',
+                        type: 'warning'
+                    });
+                }
+                return extension
+            },
+        },
+        mounted: function () {
+            this.loadForm(jobId)
+            this.loadMusicList()
+        },
+    })
+    function getQueryVariable(variable){
+        let query = window.location.search.substring(1);
+        let vars = query.split("&");
+        for (let i=0;i<vars.length;i++) {
+            let pair = vars[i].split("=");
+            if(pair[0] == variable){return pair[1];}
+        }
+        return "";
+    }
+</script>
+</html>
